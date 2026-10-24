@@ -1,0 +1,3 @@
+- insert:
+    - id: conversation-cleaner
+      name: '@local/dsh-conversation-cleaner'

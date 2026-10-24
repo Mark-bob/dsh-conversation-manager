@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# Local scratch files
+client.recovered.js
+_dicts_block.txt
+*.tmp

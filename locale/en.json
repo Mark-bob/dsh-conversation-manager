@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Conversation Manager",
+    "description": "Adds a Conversation Manager app page for archiving, pin-locking, deleting stored conversations, and cleaning orphan attachments."
+  }
+}
