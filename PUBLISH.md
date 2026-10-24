@@ -1,6 +1,6 @@
 # 发布到 GitHub
 
-这份文档是从当前目录（`dsh-conversation-cleaner`）出发的完整发布流程。仓库已经初始化（分支 `main`）、文件已暂存，但**还没有第一次提交**，因为本机没有配置 git 身份。
+这份文档是从当前目录（`dsh-conversation-cleaner`）出发的完整发布流程。仓库已发布在 <https://github.com/Mark-bob/dsh-conversation-manager>（分支 `main`，CI 已通过）；下面保留从零开始的完整步骤，供迁移仓库或重建时参考。
 
 ## 0. 前置检查
 

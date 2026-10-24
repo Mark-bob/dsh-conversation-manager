@@ -5,6 +5,14 @@
   "type": "module",
   "description": "DeepSeek Harness plugin: manage conversations (archive, pin-lock, delete) and clean orphan attachments.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mark-bob/dsh-conversation-manager.git"
+  },
+  "homepage": "https://github.com/Mark-bob/dsh-conversation-manager#readme",
+  "bugs": {
+    "url": "https://github.com/Mark-bob/dsh-conversation-manager/issues"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",
