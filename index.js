@@ -40,6 +40,10 @@ const ATTACHMENT_BUCKET = /^[0-9a-f]{2}$/i
 /** A freshly written object may belong to an upload not yet committed to a log. */
 const ATTACHMENT_MIN_AGE_MS = 24 * 60 * 60 * 1000
 
+/** Scanning replays session logs, so bound the work a single scan can do. */
+const MAX_SCAN_SESSION_BYTES = 64 * 1024 * 1024
+const SCAN_TIME_BUDGET_MS = 20_000
+
 const ROUTE_PATH = '/api/conversation-cleaner'
 const ARCHIVE_ROUTE_PATH = '/api/conversation-cleaner-archive'
 const PIN_ROUTE_PATH = '/api/conversation-cleaner-pin'
@@ -454,6 +458,8 @@ async function handlePin(request, cleaner, ctx) {
 /** Walk any JSON value and collect every `attachmentId` string it carries. */
 function collectAttachmentIds(value, into) {
   if (value === null || typeof value !== 'object') return
+  // An offloaded image no longer needs its stored bytes; do not report it missing.
+  if (value.offloaded === true) return
   if (Array.isArray(value)) {
     for (const item of value) collectAttachmentIds(item, into)
     return
@@ -505,10 +511,11 @@ async function scanAttachments(ctx, home) {
   const lockedIds = new Set()
   const failed = []
   let pinnedSessions = 0
-  let sessionIds = []
+  let snapshots = []
+  let scanned = 0
 
   try {
-    sessionIds = (await persistence.list()).map((snapshot) => String(snapshot?.header?.id ?? ''))
+    snapshots = await persistence.list()
   } catch (error) {
     failed.push({ id: '*', code: 'list-failed', message: String(error?.message ?? error) })
   }
@@ -516,21 +523,48 @@ async function scanAttachments(ctx, home) {
   if (!query || typeof query.readSession !== 'function') {
     failed.push({ id: '*', code: 'query-unavailable' })
   } else {
-    for (const id of sessionIds) {
+    const startedAt = Date.now()
+    for (const snapshot of snapshots) {
+      const id = String(snapshot?.header?.id ?? '')
+      if (!id) continue
+      // A full replay of a huge log can stall the Host; refuse instead of guessing.
+      const bytes = Number(snapshot?.sizeBytes) || 0
+      if (bytes > MAX_SCAN_SESSION_BYTES) {
+        failed.push({ id, code: 'session-too-large', bytes })
+        continue
+      }
+      if (Date.now() - startedAt > SCAN_TIME_BUDGET_MS) {
+        failed.push({ id: '*', code: 'scan-timeout' })
+        break
+      }
       try {
-        const snapshot = await query.readSession(id)
+        const read = await query.readSession(id)
         const sessionRefs = new Set()
-        collectAttachmentIds(snapshot?.events, sessionRefs)
-        collectAttachmentIds(snapshot?.session, sessionRefs)
+        collectAttachmentIds(read?.events, sessionRefs)
+        collectAttachmentIds(read?.session, sessionRefs)
         for (const ref of sessionRefs) referenced.add(ref)
         // A pinned conversation is locked, and so is every attachment it mentions.
         if (flags.pinned.has(id)) {
           pinnedSessions += 1
           for (const ref of sessionRefs) lockedIds.add(ref)
         }
+        scanned += 1
       } catch (error) {
         failed.push({ id, code: 'read-failed', message: String(error?.message ?? error) })
       }
+    }
+  }
+
+  // References whose stored object is gone: not cleanup targets, but worth reporting.
+  const missingIds = []
+  for (const id of referenced) {
+    const hex = String(id).split(':').pop()
+    if (!ATTACHMENT_HASH.test(hex)) continue
+    try {
+      const info = await fs.stat(path.join(root, hex.slice(0, 2), hex))
+      if (!info.isFile()) missingIds.push(hex)
+    } catch {
+      missingIds.push(hex)
     }
   }
 
@@ -548,11 +582,14 @@ async function scanAttachments(ctx, home) {
     complete: failed.length === 0,
     failed,
     minAgeMs: ATTACHMENT_MIN_AGE_MS,
-    sessions: sessionIds.length,
+    sessions: snapshots.length,
+    scanned,
     pinnedSessions,
     referenced: referenced.size,
     locked: lockedIds.size,
     lockedIds,
+    missing: missingIds.length,
+    missingSamples: missingIds.slice(0, 10),
     files: files.length,
     totalBytes: totalBytes(files),
     orphanCount: orphans.length,

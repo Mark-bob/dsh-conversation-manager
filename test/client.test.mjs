@@ -46,6 +46,7 @@ const fakeCtx = {
       assert.ok(dicts.en.pin && dicts.zh.unpin, 'pin/unpin copy is localized')
       assert.ok(dicts.en.pinnedNotice && dicts.zh.pinArchived, 'pin state copy is localized')
       assert.ok(dicts.en.attachLockedLabel && dicts.zh.attachLockedLabel, 'locked attachment copy is localized')
+      assert.ok(dicts.en.attachMissingLabel && dicts.zh.attachMissingNote, 'missing attachment copy is localized')
     },
     bind: () => (key) => key,
     subscribe: () => () => {},

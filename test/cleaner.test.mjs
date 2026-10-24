@@ -451,6 +451,7 @@ const orphanOldHash = 'b'.repeat(64)
 const orphanNewHash = 'c'.repeat(64)
 const referencedOldHash = 'd'.repeat(64)
 const pinnedRefHash = 'e'.repeat(64)
+const missingRefHash = 'f'.repeat(64)
 const pinnedSession = uuid(11)
 const jsonHeaders = { 'content-type': 'application/json' }
 const day = 24 * 60 * 60 * 1000
@@ -501,6 +502,7 @@ const scanQuery = {
             message: {
               content: [
                 { type: 'image', attachment: { attachmentId: referencedHash } },
+                { type: 'image', attachment: { attachmentId: missingRefHash } },
                 { type: 'file', attachment: { attachmentId: referencedOldHash } },
               ],
             },
@@ -527,6 +529,8 @@ assert.equal(attachPayload.orphanCount, 2)
 assert.equal(attachPayload.deletableCount, 1)
 assert.equal(attachPayload.orphans.find((file) => file.id === orphanNewHash).deletable, false)
 assert.equal(attachPayload.orphans.some((file) => file.id === pinnedRefHash), false)
+assert.equal(attachPayload.missing, 1)
+assert.ok(attachPayload.missingSamples.includes(missingRefHash))
 assert.equal(attachPayload.lockedIds, undefined, 'the internal lock set is not serialized')
 
 // A locked attachment stays even when a stale client asks for it.
@@ -589,6 +593,27 @@ attachResponse = await brokenScanHandler(
 assert.equal(attachResponse.status, 409)
 assert.equal((await fs.stat(orphanNewFile)).isFile(), true)
 
+// A session above the scan cap is skipped, which blocks cleanup entirely.
+const hugePersistence = {
+  async list() {
+    return [{ header: { id: uuid(30) }, sizeBytes: 100 * 1024 * 1024 }]
+  },
+}
+const hugeHandler = createAttachmentHandler(cleaner, {
+  get: (name) => (name === 'sessionPersistence' ? hugePersistence : name === 'sessionQuery' ? scanQuery : undefined),
+})
+attachResponse = await hugeHandler(new Request(attachUrl))
+attachPayload = await attachResponse.json()
+assert.equal(attachPayload.complete, false)
+assert.ok(attachPayload.failed.some((item) => item.code === 'session-too-large'))
+attachResponse = await hugeHandler(
+  new Request(attachUrl, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ action: 'delete', ids: [orphanNewHash] }),
+  }),
+)
+assert.equal(attachResponse.status, 409)
 await fs.rm(home, { recursive: true, force: true })
 console.log('conversation-cleaner host checks passed')
 

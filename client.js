@@ -73,6 +73,9 @@ window.__ModuleLoader__.load({
         attachOrphanLabel: 'unreferenced',
         attachDeletableLabel: 'removable',
         attachLockedLabel: 'attachments locked by pinned conversations',
+        attachMissingLabel: 'referenced attachments missing',
+        attachMissingNote:
+          'Some conversations reference attachment files that no longer exist. They are not cleanup targets, but those conversations may fail to load images.',
         scanIncomplete:
           'Scan incomplete: at least one conversation log could not be read, so nothing will be deleted.',
         scanFailed: 'The attachment scan failed.',
@@ -153,6 +156,8 @@ window.__ModuleLoader__.load({
         attachOrphanLabel: '个未被引用',
         attachDeletableLabel: '个可清理',
         attachLockedLabel: '个附件被置顶对话锁定',
+        attachMissingLabel: '个引用缺失',
+        attachMissingNote: '有对话引用了已不存在的附件文件；它们不参与清理，但相关对话的图片可能无法加载。',
         scanIncomplete: '扫描未完成：有对话日志读不出来，因此不会执行删除。',
         scanFailed: '附件扫描失败。',
         clean: '清理未引用文件',
@@ -706,8 +711,10 @@ window.__ModuleLoader__.load({
                 ' · ',
                 scan.deletableCount + ' ' + t('attachDeletableLabel'),
                 scan.locked > 0 ? ' · ' + scan.locked + ' ' + t('attachLockedLabel') : '',
+                scan.missing > 0 ? ' · ' + scan.missing + ' ' + t('attachMissingLabel') : '',
               ),
               scan.complete ? null : h('div', { className: 'dsh-cc-panel-note' }, t('scanIncomplete')),
+              scan.missing > 0 ? h('div', { className: 'dsh-cc-panel-note' }, t('attachMissingNote')) : null,
               removable > 0
                 ? confirming
                   ? h(
